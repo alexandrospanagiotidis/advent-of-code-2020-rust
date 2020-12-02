@@ -5,14 +5,27 @@ use std::ops::Add;
 struct PasswordPolicy {
     min_occurrences: usize,
     max_occurrences: usize,
-    character: String,
+    character: char,
 }
 
 impl PasswordPolicy {
-    fn is_valid(&self, password: &String) -> bool {
-        let occurrences = password.matches(&self.character).count();
+    fn is_valid_sled_rental(&self, password: &String) -> bool {
+        let occurrences = password.matches(self.character).count();
 
         occurrences >= self.min_occurrences && occurrences <= self.max_occurrences
+    }
+
+    fn is_valid_toboggan(&self, password: &String) -> bool {
+        let chars = password.chars();
+
+        // println!("password={0} policy={1:?}", password, self);
+
+        // Indices are 1-based at Toboggan
+        let first_occurrence_matches = chars.clone().nth(self.min_occurrences - 1).unwrap() == self.character;
+        let second_occurrence_matches = chars.clone().nth(self.max_occurrences - 1).unwrap() == self.character;
+
+        // Only one occurrence allowed
+        first_occurrence_matches != second_occurrence_matches
     }
 }
 
@@ -24,12 +37,26 @@ fn main() {
 
     // println!("input = {0:?}", test_cases);
 
+    day02_part1(&test_cases);
+    day02_part2(&test_cases);
+}
+
+fn day02_part1(test_cases: &Vec<(PasswordPolicy, String)>) {
     let valid_password_count = test_cases.iter()
-        .map(|(password_policy, password)| password_policy.is_valid(password))
+        .map(|(password_policy, password)| password_policy.is_valid_sled_rental(password))
         .filter(|valid| *valid == true)
         .count();
 
-    println!("number of valid passwords = {0}", valid_password_count);
+    println!("part1: number of valid passwords = {0}", valid_password_count);
+}
+
+fn day02_part2(test_cases: &Vec<(PasswordPolicy, String)>) {
+    let valid_password_count = test_cases.iter()
+        .map(|(password_policy, password)| password_policy.is_valid_toboggan(password))
+        .filter(|valid| *valid == true)
+        .count();
+
+    println!("part2: number of valid passwords = {0}", valid_password_count);
 }
 
 fn parse_line(line: String) -> (PasswordPolicy, String) {
@@ -43,16 +70,11 @@ fn parse_line(line: String) -> (PasswordPolicy, String) {
         ))
         .expect(String::from("Failed to parse range from line").add(&line).as_str());
 
-    let character = tokens.next()
-        .map(|character| character.split(":")
-            .take(1)
-            .nth(0)
-            .unwrap()
-        )
-        .map(String::from)
+    let character: char = tokens.next()
+        .map(|probe_string| probe_string.chars().nth(0).unwrap())
         .expect(String::from("Failed to parse character from line").add(&line).as_str());
 
-    let probe = tokens.next()
+    let password = tokens.next()
         .map(String::from)
         .expect(String::from("Failed to parse prove from line").add(&line).as_str());
 
@@ -60,5 +82,5 @@ fn parse_line(line: String) -> (PasswordPolicy, String) {
         min_occurrences,
         max_occurrences,
         character,
-    }, probe)
+    }, password)
 }
