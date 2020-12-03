@@ -34,6 +34,7 @@ fn main() {
     // println!("{0:?}", map);
 
     println!("part 1: encountered trees = {0}", part1(&map, 3, 1));
+    println!("part 2: product of encountered trees = {0}", part2(&map));
 }
 
 fn part1(map: &Map, dx: usize, dy: usize) -> u32 {
@@ -65,4 +66,12 @@ fn part1(map: &Map, dx: usize, dy: usize) -> u32 {
     }
 
     tree_count as u32
+}
+
+fn part2(map: &Map) -> u64 {
+    part1(&map, 1, 1) as u64
+        * part1(&map, 3, 1) as u64
+        * part1(&map, 5, 1) as u64
+        * part1(&map, 7, 1) as u64
+        * part1(&map, 1, 2) as u64
 }
