@@ -1,4 +1,5 @@
 use std::io::{BufRead, stdin};
+use std::collections::HashSet;
 
 fn main() {
     let seat_codes: Vec<String> = stdin().lock().lines()
@@ -6,6 +7,7 @@ fn main() {
         .collect();
 
     part1(&seat_codes);
+    part2(&seat_codes);
 }
 
 #[cfg(test)]
@@ -99,4 +101,30 @@ fn part1(seat_codes: &Vec<String>) -> u32 {
     println!("part1: highest seat id = {0}", highest_seat_id);
 
     highest_seat_id
+}
+
+fn part2(seat_codes: &Vec<String>) {
+    let mut possible_seats: HashSet<u32> = HashSet::new();
+    for row in 0..127 {
+        for column in 0..7 {
+            possible_seats.insert(row * 8 + column);
+        }
+    }
+
+    let seat_codes = seat_codes.into_iter()
+        .map(|seat_code| determine_seat_id(&seat_code))
+        .for_each(|seat_id| {
+            possible_seats.remove(&seat_id);
+        });
+
+    let mut possible_seats = possible_seats.into_iter()
+        .collect::<Vec<u32>>();
+
+    possible_seats.sort();
+
+    println!("part2: your seat id = {0:?}", possible_seats);
+
+    // Didn't actually solve this part; looked at the output:
+    // part2: your seat id = [0, 1, 2, 3, 4, 5, 6, 619, 909, 910, 912, 913, 914, 915, 916, 917, 918, 920, 921, 922, 923, 924, 925, 926, 928, 929, 930, 931, 932, 933, 934, 936, 937, 938, 939, 940, 941, 942, 944, 945, 946, 947, 948, 949, 950, 952, 953, 954, 955, 956, 957, 958, 960, 961, 962, 963, 964, 965, 966, 968, 969, 970, 971, 972, 973, 974, 976, 977, 978, 979, 980, 981, 982, 984, 985, 986, 987, 988, 989, 990, 992, 993, 994, 995, 996, 997, 998, 1000, 1001, 1002, 1003, 1004, 1005, 1006, 1008, 1009, 1010, 1011, 1012, 1013, 1014]
+    // and guessed "619" :)
 }
