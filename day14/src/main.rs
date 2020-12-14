@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::io::{BufRead, stdin};
-use std::thread::current;
+use std::iter::FromIterator;
 
 #[derive(Debug)]
 enum CommandType {
@@ -78,6 +78,67 @@ impl State {
 
         self
     }
+    fn decode_and_write(&mut self, address: usize, value: u64) -> &Self {
+        let mut value = value;
+
+        println!("value={0} current_mask={1}", value, self.current_mask);
+
+        let mut address = address;
+
+        let byte_length = self.current_mask.len();
+
+        let address: Vec<char> = self.current_mask.chars()
+            .enumerate()
+            .map(|(index, bit)| {
+                match bit {
+                    '0' => if address & (byte_length - index) == 1 { '1' } else { '0' },
+                    '1' => '1',
+                    'X' => 'X',
+                    _ => panic!(format!("Invalid bit '{0}' in current_mask: {1}", bit, self.current_mask).as_str()),
+                }
+            })
+            .collect();
+
+        for address in decode_address(address.as_slice()) {
+            let address = address.parse::<usize>()
+                .expect(format!("Cannot address to usize: {0}", address).as_str());
+            *self.memory.entry(address).or_insert(0) = value;
+        }
+
+        self
+    }
+}
+
+fn decode_address(tail: &[char]) -> Vec<String> {
+    // Find next X
+    let next_floating = tail.iter().position(|bit| *bit == 'X');
+
+    // If none, return tail
+    if next_floating.is_none() {
+        return vec![String::from_iter(tail)];
+    }
+
+    let next_floating = next_floating
+        .expect(format!("Could not find next X: {0:?}", tail).as_str());
+
+    // Otherwise grab everything until that X
+    let prefix: String = String::from_iter(&tail[..next_floating]);
+
+    let with_zero = decode_address(&tail[next_floating + 1..]);
+    let with_one = decode_address(&tail[next_floating + 1..]);
+
+    let mut result = Vec::new();
+    result.reserve_exact(with_zero.len() + with_one.len());
+
+    result.append(with_zero.iter()
+        .map(|&suffix| [&prefix, &"0".to_string(), &suffix].concat())
+        .collect());
+
+    result.append(with_one.iter()
+        .map(|suffix| [&prefix, &"1".to_string(), &suffix].concat())
+        .collect());
+
+    result
 }
 
 fn read_input(lines: &Vec<String>) -> InstructionTable {
