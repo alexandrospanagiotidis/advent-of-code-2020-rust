@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap};
 use std::io::{BufRead, stdin};
 use std::ops::RangeInclusive;
 
@@ -12,13 +12,32 @@ fn main() {
         .map(|maybe_line| maybe_line.expect("Error while reading line"))
         .collect();
 
-    let (ranges, _my_ticket, tickets) = parse_input(&lines);
+    let (ranges, my_ticket, tickets) = parse_input(&lines);
 
-    {
-        let part1_result = part1(&ranges, &tickets);
-        let ticket_scanning_error_rate: u16 = part1_result.iter().sum();
-        println!("part1: ticket_scanning_error_rate={0}", ticket_scanning_error_rate);
-    }
+    let part1_result = part1(&ranges, &tickets);
+    let ticket_scanning_error_rate: u16 = part1_result.values().cloned().sum();
+    println!("part1: ticket_scanning_error_rate={0}", ticket_scanning_error_rate);
+    assert_eq!(ticket_scanning_error_rate, 20013);
+
+    // println!("#tickets={0}", tickets.len());
+    let mut valid_tickets: Vec<Ticket> = tickets.into_iter()
+        .enumerate()
+        .filter(|&(index, _)| !part1_result.contains_key(&index))
+        .map(|(_, ticket)| ticket)
+        .collect();
+
+    // println!("#valid_tickets={0}", valid_tickets.len());
+    // println!("valid_tickets={0:#?}", valid_tickets);
+
+    valid_tickets.push(my_ticket.clone());
+    let field_order = part2(&ranges, &valid_tickets);
+
+    let departure_product = field_order.iter()
+        .filter(|&(field, _index)| field.starts_with("departure "))
+        .map(|(_field, index)| *index)
+        .fold(1u64, |product, index| product * my_ticket[index].clone() as u64);
+
+    println!("part2: departure_product={0}", departure_product);
 }
 
 fn parse_input(lines: &Vec<String>) -> (HashMap<&str, ValueRanges>, Ticket, Vec<Ticket>) {
@@ -62,7 +81,7 @@ fn parse_input(lines: &Vec<String>) -> (HashMap<&str, ValueRanges>, Ticket, Vec<
         ranges.insert(range_name, vec![range1, range2]);
     }
 
-    // println!("ranges={0:#?}", ranges);
+    println!("ranges={0:#?}", ranges);
 
     let my_ticket: Ticket = parse_ticket(lines.next().unwrap());
 
@@ -100,38 +119,92 @@ fn parse_ticket(line: &str) -> Ticket {
         .collect()
 }
 
-fn part1(ranges: &HashMap<&str, ValueRanges>, tickets: &Vec<Ticket>) -> Vec<ValueRangeType> {
-    let mut invalid_fields: Vec<ValueRangeType> = Vec::with_capacity(tickets.len());
+fn part1(ranges: &HashMap<&str, ValueRanges>, tickets: &Vec<Ticket>) -> HashMap<usize, ValueRangeType> {
+    let mut invalid_fields: HashMap<usize, ValueRangeType> = HashMap::with_capacity(tickets.len());
 
     let mut current_fields: HashMap<ValueRangeType, usize> = HashMap::with_capacity(20);
 
-    for ticket in tickets {
+    for (index, ticket) in tickets.iter().enumerate() {
         current_fields.clear();
 
         for number in ticket {
             let entry = current_fields.entry(*number).or_insert(0);
 
             for (&_field, field_ranges) in ranges {
-                for range in field_ranges {
-                    if range.contains(&number) {
-                        *entry += 1;
-                    }
+                if valid_field(&number, field_ranges) {
+                    *entry += 1;
                 }
             }
         }
 
         // println!("current_fields={0:#?}", current_fields);
 
-        let mut invalid_field: Vec<ValueRangeType> = current_fields.iter()
+        let invalid_entries: Vec<ValueRangeType> = current_fields.iter()
             .filter(|&(_value, count)| *count == 0)
             .map(|(value, _count)| *value)
             .collect();
 
-        invalid_fields.append(&mut invalid_field);
+        if !invalid_entries.is_empty() {
+            // Let's hope it's always just one invalid entry per ticket
+            invalid_fields.insert(index, *invalid_entries.get(0).unwrap());
+        }
     }
 
     invalid_fields
 }
+
+fn valid_field(value: &ValueRangeType, field: &ValueRanges) -> bool {
+    field.iter().any(|range| range.contains(value))
+}
+
+fn part2(ranges: &HashMap<&str, ValueRanges>, tickets: &Vec<Ticket>) -> HashMap<String, usize> {
+    let number_of_fields = tickets.first().unwrap().len();
+
+    let mut possible_fields_for_index: HashMap<&str, Vec<bool>> = HashMap::new();
+
+    for ticket in tickets {
+        for (index, number) in ticket.iter().enumerate() {
+            for (field, range) in ranges {
+                let entry = possible_fields_for_index.entry(field)
+                    .or_insert(vec![true; number_of_fields]);
+
+                if !valid_field(&number, &range) {
+                    entry[index] = false;
+                }
+            }
+        }
+    }
+
+    // println!("possible_fields_for_index={0:#?}", possible_fields_for_index);
+
+    let mut order: HashMap<String, usize> = HashMap::new();
+    let mut valid_index = Vec::with_capacity(number_of_fields);
+
+    while order.len() != number_of_fields {
+        for (field, indices) in &possible_fields_for_index {
+            // println!("trying field={0} indices={1:?} valid_index={2:?}", field, indices, valid_index);
+
+            let mut possible_indices = Vec::with_capacity(number_of_fields);
+
+            for (index, &can_be_used) in indices.iter().enumerate() {
+                if !valid_index.contains(&index) && can_be_used {
+                    possible_indices.push(index);
+                }
+            }
+
+            if possible_indices.len() == 1 {
+                let index = possible_indices[0];
+                order.insert(field.to_string(), index);
+                valid_index.push(index);
+            }
+        }
+    }
+
+    // println!("order={0:?}", order);
+
+    order
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -162,6 +235,11 @@ nearby tickets:
 
         // println!("part1_example1={0:#?}", result);
 
-        assert_eq!(result, vec![4, 55, 12]);
+        let result: Vec<ValueRangeType> = result.values().cloned().collect();
+
+        assert_eq!(result.len(), 3);
+        assert!(result.contains(&4));
+        assert!(result.contains(&55));
+        assert!(result.contains(&12));
     }
 }
