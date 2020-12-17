@@ -1,35 +1,28 @@
-use std::collections::HashSet;
-
-type Coordinate = (i32, i32, i32);
-
-#[derive(Debug)]
-struct CubeGrid {
-    active: HashSet<Coordinate>,
+trait Coordinate: Copy + PartialEq + Sized {
+    fn new2d(x: i32, y: i32) -> Self;
+    fn adjacent_coordinates(&self) -> Vec<Self>;
 }
 
-impl CubeGrid {
-    fn new() -> Self {
-        CubeGrid {
-            active: HashSet::new(),
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Coordinate3d(i32, i32, i32);
+
+impl Coordinate3d {
+    fn new(x: i32, y: i32, z: i32) -> Self {
+        Coordinate3d {
+            0: x,
+            1: y,
+            2: z,
         }
     }
+}
 
-    fn from(other: &Self) -> Self {
-        CubeGrid {
-            active: other.active.clone(),
-        }
+impl Coordinate for Coordinate3d {
+    fn new2d(x: i32, y: i32) -> Self {
+        Coordinate3d::new(x, y, 0)
     }
 
-    fn add_active(&mut self, coordinate: Coordinate) {
-        self.active.insert(coordinate);
-    }
-
-    fn is_active(&self, coordinate: Coordinate) -> bool {
-        self.active.contains(&coordinate)
-    }
-
-    fn adjacent_coordinates(&self, coordinate: Coordinate) -> Vec<Coordinate> {
-        let mut coordinates = Vec::with_capacity(26);
+    fn adjacent_coordinates(&self) -> Vec<Self> {
+        let mut coordinates = Vec::with_capacity(3 * 3 * 3 - 1);
 
         for dz in -1..=1 {
             for dy in -1..=1 {
@@ -38,10 +31,10 @@ impl CubeGrid {
                         continue;
                     }
 
-                    coordinates.push((
-                        coordinate.0 + dx,
-                        coordinate.1 + dy,
-                        coordinate.2 + dz
+                    coordinates.push(Self::new(
+                        self.0 + dx,
+                        self.1 + dy,
+                        self.2 + dz,
                     ));
                 }
             }
@@ -49,11 +42,89 @@ impl CubeGrid {
 
         coordinates
     }
+}
 
-    fn active_neighbors(&self, coordinate: Coordinate) -> usize {
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Coordinate4d(i32, i32, i32, i32);
+
+impl Coordinate4d {
+    fn new(x: i32, y: i32, z: i32, w: i32) -> Self {
+        Coordinate4d {
+            0: x,
+            1: y,
+            2: z,
+            3: w,
+        }
+    }
+}
+
+impl Coordinate for Coordinate4d {
+    fn new2d(x: i32, y: i32) -> Self {
+        Coordinate4d(x, y, 0, 0)
+    }
+
+    fn adjacent_coordinates(&self) -> Vec<Self> {
+        let mut coordinates = Vec::with_capacity(4 * 4 * 4 * 4 - 1);
+
+        for dw in -1..=1 {
+            for dz in -1..=1 {
+                for dy in -1..=1 {
+                    for dx in -1..=1 {
+                        if dw == 0 && dz == 0 && dy == 0 && dx == 0 {
+                            continue;
+                        }
+
+                        coordinates.push(Self::new(
+                            self.0 + dx,
+                            self.1 + dy,
+                            self.2 + dz,
+                            self.3 + dw,
+                        ));
+                    }
+                }
+            }
+        }
+
+        coordinates
+    }
+}
+
+#[derive(Debug, PartialEq)]
+struct CubeGrid<CoordinateType: Coordinate> {
+    active: Vec<CoordinateType>,
+}
+
+impl<CoordinateType: Coordinate> Clone for CubeGrid<CoordinateType> {
+    fn clone(&self) -> Self {
+        let vec = self.active.clone();
+
+        CubeGrid {
+            active: vec,
+        }
+    }
+}
+
+impl<CoordinateType: Coordinate> CubeGrid<CoordinateType> {
+    fn new() -> Self {
+        CubeGrid {
+            active: Vec::new(),
+        }
+    }
+
+    fn add_active(&mut self, coordinate: CoordinateType) {
+        if !self.active.contains(&coordinate) {
+            self.active.push(coordinate);
+        }
+    }
+
+    fn is_active(&self, coordinate: CoordinateType) -> bool {
+        self.active.contains(&coordinate)
+    }
+
+    fn active_neighbors(&self, coordinate: CoordinateType) -> usize {
         let mut active = 0;
 
-        for neighbor_coordinate in self.adjacent_coordinates(coordinate) {
+        for neighbor_coordinate in coordinate.adjacent_coordinates() {
             if self.is_active(neighbor_coordinate) {
                 active += 1;
             }
@@ -79,15 +150,27 @@ fn main() {
 #.#.#..#
     ";
 
-    let mut cube_grid = read_input(input);
+    {
+        let mut cube_grid: CubeGrid<Coordinate3d> = read_input(input);
 
-    // println!("cube_Grid={0:#?}", cube_grid);
+        let part1_grid = simulate(&mut cube_grid, 6);
+        let num_active = part1_grid.count_active();
 
-    let part1_grid = simulate(&mut cube_grid, 6);
-    println!("part1: num_active={0}", part1_grid.count_active());
+        println!("part1: num_active={0}", num_active);
+        assert_eq!(num_active, 276)
+    }
+    {
+        let mut cube_grid: CubeGrid<Coordinate4d> = read_input(input);
+
+        let part2_grid = simulate(&mut cube_grid, 6);
+        let num_active = part2_grid.count_active();
+
+        println!("part2: num_active={0}", num_active);
+        assert_eq!(num_active, 2136)
+    }
 }
 
-fn read_input(input: &str) -> CubeGrid {
+fn read_input<CoordinateType: Coordinate>(input: &str) -> CubeGrid<CoordinateType> {
     let mut x;
     let mut y = 0;
     let z = 0;
@@ -99,7 +182,7 @@ fn read_input(input: &str) -> CubeGrid {
         for cube in line.chars() {
             match cube {
                 '.' => (),
-                '#' => cube_grid.add_active((x, y, z)),
+                '#' => cube_grid.add_active(CoordinateType::new2d(x, y)),
                 _ => panic!(format!("Invalid state '{3}' at ({0}, {1}, {2}) (line={4})", x, y, z, cube, line)),
             };
 
@@ -111,8 +194,8 @@ fn read_input(input: &str) -> CubeGrid {
     cube_grid
 }
 
-fn simulate(cube_grid: &CubeGrid, rounds: usize) -> CubeGrid {
-    let mut cube_grid = CubeGrid::from(cube_grid);
+fn simulate<CoordinateType: Coordinate>(cube_grid: &CubeGrid<CoordinateType>, rounds: usize) -> CubeGrid<CoordinateType> {
+    let mut cube_grid = cube_grid.clone();
 
     for _i in 0..rounds {
         cube_grid = simulate_once(&mut cube_grid);
@@ -121,13 +204,13 @@ fn simulate(cube_grid: &CubeGrid, rounds: usize) -> CubeGrid {
     cube_grid
 }
 
-fn simulate_once(cube_grid: &CubeGrid) -> CubeGrid {
+fn simulate_once<CoordinateType: Coordinate>(cube_grid: &CubeGrid<CoordinateType>) -> CubeGrid<CoordinateType> {
     let mut next_grid = CubeGrid::new();
 
-    let mut coordinates: Vec<Coordinate> = Vec::new();
+    let mut coordinates: Vec<CoordinateType> = Vec::new();
 
     for &coordinate in &cube_grid.active {
-        coordinates.extend(cube_grid.adjacent_coordinates(coordinate));
+        coordinates.extend(coordinate.adjacent_coordinates());
     }
 
     coordinates.extend(cube_grid.active.clone());
@@ -151,7 +234,7 @@ fn simulate_once(cube_grid: &CubeGrid) -> CubeGrid {
             }
         }
 
-        println!();
+        // println!();
     }
 
     // println!("next_grid={0:?}", next_grid);
@@ -170,7 +253,7 @@ mod day17_tests {
 ###
 ";
 
-        let mut cube_grid = read_input(input);
+        let mut cube_grid: CubeGrid<Coordinate3d> = read_input(input);
 
         let cube_grid = simulate(&mut cube_grid, 6);
 
@@ -179,5 +262,25 @@ mod day17_tests {
         let num_active = cube_grid.count_active();
 
         assert_eq!(num_active, 112)
+    }
+
+    // Kinda does not terminate
+    #[test]
+    fn part2_example1() {
+        let input = r"
+.#.
+..#
+###
+";
+
+        let mut cube_grid: CubeGrid<Coordinate4d> = read_input(input);
+
+        let cube_grid = simulate(&mut cube_grid, 6);
+
+        // println!("cube_grid={0:#?}", cube_grid);
+
+        let num_active = cube_grid.count_active();
+
+        assert_eq!(num_active, 848)
     }
 }
