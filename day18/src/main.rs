@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 use std::io::{BufRead, stdin};
+use std::iter::FromIterator;
 
 #[derive(Clone, Debug, PartialEq)]
 enum OperationType {
@@ -22,23 +23,38 @@ fn main() {
         .map(|line| line.expect("Cannot read line"))
         .collect();
 
-    let mut result: NumberType = 0;
+    {
+        let mut result: NumberType = 0;
 
-    for line in lines {
-        let line = line.trim();
+        for line in &lines {
+            let line = line.trim();
 
-        if line.is_empty() {
-            continue;
+            if line.is_empty() {
+                continue;
+            }
+
+            let mut tokens = parse(&line);
+            result += part1(&mut tokens);
         }
 
-        let mut tokens = parse(&line);
-        print!("tokens={0:?}", tokens);
-        let res = evaluate(&mut tokens);
-        result += res;
-        println!("  res={0:?} -> result={1}", res, result);
+        println!("part1: result={0}", result);
     }
+    {
+        let mut result: NumberType = 0;
 
-    println!("part1: result={0}", result);
+        for line in &lines {
+            let line = line.trim();
+
+            if line.is_empty() {
+                continue;
+            }
+
+            let mut tokens = parse(&line);
+            result += part2(&mut tokens);
+        }
+
+        println!("part2: result={0}", result);
+    }
 }
 
 fn parse(line: &str) -> Vec<Operation> {
@@ -103,9 +119,7 @@ fn parse(line: &str) -> Vec<Operation> {
     operands
 }
 
-fn evaluate(operands: &mut Vec<Operation>) -> NumberType {
-    // println!("-- operands={0:?}", operands);
-
+fn resolve_parens(operands: &mut Vec<Operation>, evaluate: &dyn Fn(&mut Vec<Operation>) -> NumberType) {
     'resolve_parens: loop {
         // println!("operands={0:?}", operands);
 
@@ -136,6 +150,12 @@ fn evaluate(operands: &mut Vec<Operation>) -> NumberType {
             None => break 'resolve_parens,
         }
     }
+}
+
+fn part1(operands: &mut Vec<Operation>) -> NumberType {
+    // println!("-- operands={0:?}", operands);
+
+    resolve_parens(operands, &part1);
 
     // println!("No more parens -> {0:?}", operands);
 
@@ -172,4 +192,54 @@ fn evaluate(operands: &mut Vec<Operation>) -> NumberType {
         Operation::Operand(number) => number,
         _ => panic!(format!("Last element not an operand: {0:?}", operands)),
     }
+}
+
+fn part2(operands: &mut Vec<Operation>) -> NumberType {
+    // println!("-- operands={0:?}", operands);
+
+    resolve_parens(operands, &part2);
+
+    'resolve_plus: loop {
+        let next_plus = operands.iter()
+            .position(|op| *op == Operation::Operation(OperationType::Plus));
+
+        match next_plus {
+            None => break 'resolve_plus,
+            Some(index) => {
+                let mut ops = VecDeque::from_iter(operands.drain(index - 1..=index + 1));
+
+                let number1 = match ops.pop_front() {
+                    Some(Operation::Operand(number)) => number,
+                    _ => panic!(format!("Expected number: {0:?}", ops)),
+                };
+
+                let number2 = match ops.pop_back() {
+                    Some(Operation::Operand(number)) => number,
+                    _ => panic!(format!("Expected number: {0:?}", ops)),
+                };
+
+                operands.insert(index - 1, Operation::Operand(number1 + number2));
+            }
+        }
+    }
+
+    let mut result = match operands.pop() {
+        Some(Operation::Operand(number)) => number,
+        _ => panic!(format!("Expected number: {0:?}", operands)),
+    };
+
+    // Can only contain Operand or Mult
+    while operands.len() > 1 {
+        // Skip Mult
+        operands.pop();
+
+        let number = match operands.pop() {
+            Some(Operation::Operand(number)) => number,
+            _ => panic!(format!("Expected number: {0:?}", operands)),
+        };
+
+        result *= number;
+    }
+
+    result
 }
